@@ -1,0 +1,57 @@
+name: Build & Package Marshel-IX
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: Package Windows Application
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate PowerShell Script Syntax
+        shell: powershell
+        run: |
+          Write-Host "Memeriksa sintaks MARSHAL-IX9.ps1..."
+          $errors = $null
+          [System.Management.Automation.PSParser]::Tokenize((Get-Content .\MARSHAL-IX9.ps1 -Raw), [ref]$errors)
+          if ($errors.Count -gt 0) {
+              Write-Error "Terdapat error sintaks pada MARSHAL-IX9.ps1!"
+              $errors | ForEach-Object { Write-Host $_ }
+              exit 1
+          }
+          Write-Host "Sintaks PowerShell valid!"
+
+      - name: Create Release Zip Package
+        shell: powershell
+        run: |
+          $zipName = "Marshel-IX-v1.0.zip"
+          Compress-Archive -Path "MARSHAL-IX9.bat", "MARSHAL-IX9.ps1", "logo.png" -DestinationPath $zipName -Force -ErrorAction SilentlyContinue
+          # Jika logo.png tidak wajib, compress tanpa logo jika file tidak ditemukan:
+          if (-not (Test-Path $zipName)) {
+              Compress-Archive -Path "MARSHAL-IX9.bat", "MARSHAL-IX9.ps1" -DestinationPath $zipName -Force
+          }
+
+      - name: Upload Artifact (Hasil Build)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Marshel-IX-Windows
+          path: Marshel-IX-v1.0.zip
+
+      - name: Create GitHub Release (Saat Push Tag v*)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Marshel-IX-v1.0.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
